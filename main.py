@@ -3,14 +3,12 @@ import re
 import socket
 import logging
 
+from logger import setup_logger
 from protocol import Protocol
 
 
-logging.basicConfig(
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='error.log',
-    level=logging.INFO
-)
+setup_logger()
+log = logging.getLogger('logger')
 
 
 RU = {
@@ -38,13 +36,10 @@ def system_startup_time():
 
 def handle(data):
     packet = Protocol.decode(data)
-    if packet is None:
-        return None
-
     if packet.code == Protocol.CODE_IFALIVE:
-        return Protocol(Protocol.CODE_IFALIVE, packet.uid).encode()
+        return Protocol(Protocol.CODE_IFALIVE, packet.uid, packet.cid).encode()
     elif packet.code == Protocol.CODE_ASKSTARTTIME:
-        return Protocol(Protocol.CODE_STARTTIME, packet.uid, system_startup_time()).encode()
+        return Protocol(Protocol.CODE_STARTTIME, packet.uid, packet.cid, system_startup_time()).encode()
     else:
         return None
 
@@ -54,15 +49,17 @@ def main():
     sock.bind(('', PROTO_PORT_SERVER))
 
     while True:
+        data, addr = sock.recvfrom(1024)
+        log.debug(f'From {addr[0]}:{addr[1]} {data}')
         try:
-            data, addr = sock.recvfrom(1024)
             answ = handle(data)
+            log.debug(f'Response: {answ}')
             if answ is not None:
                 sock.sendto(answ, (addr[0], PROTO_PORT_CLIENT))
         except KeyboardInterrupt:
             break
         except Exception as err:
-            logging.error(err)
+            log.error(f'Packet: {data}. Error msg: {err}')
 
 
 if __name__ == '__main__':
