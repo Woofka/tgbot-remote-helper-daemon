@@ -2,6 +2,8 @@ import subprocess
 import re
 import socket
 import logging
+import os
+import datetime
 
 from logger import setup_logger
 from protocol import Protocol
@@ -18,20 +20,25 @@ RU = {
     'ip': r'.{0,}IPv4-адрес.{0,}'
 }
 
+STARTUP_FILE_NAME = 'startup.info'
 
 PROTO_PORT_SERVER = 10788
 PROTO_PORT_CLIENT = 10789
 
 
 def system_startup_time():
-    """ return startup time in iso format """
-    cmd_res = subprocess.run(['systeminfo'], stdout=subprocess.PIPE)
-    cmd_res = cmd_res.stdout.decode(RU['encoding'])
-    f = RU['startup_time']
-    i = cmd_res.find(f)
-    j = cmd_res.find('\n', i)
-    dt = re.findall(r'\d{2}', cmd_res[i + len(f):j])
-    return f'{dt[2]}{dt[3]}-{dt[1]}-{dt[0]}T{dt[4]}:{dt[5]}:{dt[6]}'
+    if os.path.exists(STARTUP_FILE_NAME):
+        with open(STARTUP_FILE_NAME, 'r') as f:
+            return f.read()
+    else:
+        return update_startup_time()
+
+
+def update_startup_time():
+    with open(STARTUP_FILE_NAME, 'w') as f:
+        time = datetime.datetime.now().isoformat()
+        f.write(time)
+        return time
 
 
 def handle(data):
@@ -45,6 +52,11 @@ def handle(data):
 
 
 def main():
+    log.info('Starting daemon')
+
+    log.info('Updating startup time')
+    update_startup_time()
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     sock.bind(('', PROTO_PORT_SERVER))
 
@@ -63,5 +75,4 @@ def main():
 
 
 if __name__ == '__main__':
-    log.info('Starting daemon')
     main()
